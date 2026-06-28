@@ -32,9 +32,12 @@ RUN apk add --no-cache \
         unzip \
         wget
 
-# Install shellinabox (community package on Alpine edge)
-RUN apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community \
-        shellinabox
+# Install shellinabox from Alpine edge/testing repo (not in v3.20 stable)
+# Need build deps first, then install the testing package
+RUN apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing \
+        shellinabox && \
+    # Verify it installed
+    which shellinaboxd
 
 # Copy tailscale binaries from builder
 COPY --from=tailscale-builder /tmp/tailscaled /usr/local/bin/tailscaled
