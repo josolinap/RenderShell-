@@ -10,13 +10,14 @@ FROM alpine:3.20
 
 # Core packages: supervisor + tini (process manager), tailscale binaries,
 # shellinabox (web terminal), python3 (http server + utilities),
-# shadow (for useradd/passwd), and useful dev tools.
+# shadow (for useradd/passwd), openssh (for shellinabox SSH auth), and useful dev tools.
 RUN apk add --no-cache \
         ca-certificates \
         tini \
         supervisor \
         python3 \
         shadow \
+        openssh \
         curl \
         git \
         vim \
@@ -54,6 +55,14 @@ RUN chmod +x /docker-entrypoint.sh
 # Default is a placeholder — set ROOT_PASSWORD in Render env vars
 ENV ROOT_PASSWORD=change-me
 RUN echo "root:${ROOT_PASSWORD}" | chpasswd
+
+# Generate SSH host keys + configure sshd for shellinabox auth
+RUN ssh-keygen -A && \
+    # Allow root login with password
+    sed -i 's/^#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    # Set root's shell to bash (nicer than busybox ash)
+    sed -i 's|^root:x:0:0:root:/root:/bin/.*|root:x:0:0:root:/root:/bin/bash|' /etc/passwd
 
 # Workspace for the http server + persistent files
 RUN mkdir -p /var/run/tailscale /workspace
