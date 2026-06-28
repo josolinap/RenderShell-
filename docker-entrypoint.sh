@@ -27,8 +27,20 @@ fi
 # Ensure sshd privilege separation directory exists
 mkdir -p /run/sshd
 
-# Set friendly hostname (containers don't always pick up /etc/hostname)
+# Set friendly hostname (Render overrides at infra level, but we try anyway)
 hostname render-shell 2>/dev/null || true
+
+# Set a friendly PS1 prompt so the shell shows "render-shell" not the ugly container ID
+# This goes in /etc/profile so it applies to all login shells
+cat > /etc/profile.d/render-shell.sh << 'PROFILE'
+# Friendly prompt — shows "render-shell" instead of the ugly container hostname
+export PS1='render-shell:\w# '
+# Aliases for convenience
+alias ll='ls -la'
+alias la='ls -la'
+alias ..='cd ..'
+alias ...='cd ../..'
+PROFILE
 
 # Custom motd for a nicer login experience
 cat > /etc/motd << 'MOTD'
