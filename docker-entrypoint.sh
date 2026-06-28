@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+
+# Unset Kubernetes env vars (some hosts leak them; they confuse tailscaled)
+unset KUBERNETES_SERVICE_HOST KUBERNETES_PORT KUBERNETES_PORT_443_TCP
+
+# If ROOT_PASSWORD is set at runtime (via Render env vars), update the password.
+# This lets you change the password without rebuilding the image.
+if [ -n "${ROOT_PASSWORD}" ] && [ "${ROOT_PASSWORD}" != "change-me" ]; then
+    echo "root:${ROOT_PASSWORD}" | chpasswd
+    echo "[entrypoint] root password updated from ROOT_PASSWORD env var"
+fi
+
+# Validate that TAILSCALE_AUTHKEY is set
+if [ -z "${TAILSCALE_AUTHKEY}" ]; then
+    echo "[entrypoint] WARNING: TAILSCALE_AUTHKEY is not set — node will not register"
+    echo "[entrypoint] Set TAILSCALE_AUTHKEY in your Render environment variables"
+fi
+
+# Start supervisord (manages tailscaled, tailscale-up, shellinabox, http-server)
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/services.conf
