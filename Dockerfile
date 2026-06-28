@@ -66,7 +66,9 @@ RUN echo "root:${ROOT_PASSWORD}" | chpasswd
 RUN ssh-keygen -A && \
     sed -i 's/^#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    sed -i 's|^root:x:0:0:root:/root:/bin/.*|root:x:0:0:root:/root:/bin/bash|' /etc/passwd
+    sed -i '/gssapiauthentication/d; /rhostsrsaauthentication/d; /rsaauthentication/d' /etc/ssh/ssh_config && \
+    sed -i 's|^root:x:0:0:root:/root:/bin/.*|root:x:0:0:root:/root:/bin/bash|' /etc/passwd && \
+    echo "render-shell" > /etc/hostname
 
 # Workspace + status page
 RUN mkdir -p /var/run/tailscale /workspace /run/sshd

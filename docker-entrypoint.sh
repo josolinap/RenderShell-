@@ -27,4 +27,23 @@ fi
 # Ensure sshd privilege separation directory exists
 mkdir -p /run/sshd
 
+# Set friendly hostname (containers don't always pick up /etc/hostname)
+hostname render-shell 2>/dev/null || true
+
+# Custom motd for a nicer login experience
+cat > /etc/motd << 'MOTD'
+
+   ╔══════════════════════════════════════════╗
+   ║     Render Shell — Alpine + Tailscale    ║
+   ╚══════════════════════════════════════════╝
+
+   Web terminal:  https://render-exit-node.curl-trench.ts.net/
+   File browser:  https://render-exit-node.curl-trench.ts.net/files
+
+   ⚠  Files are NOT persistent — use git or external storage
+   ⚠  Container sleeps after 15 min inactivity (free tier)
+   ⚠  512MB RAM / 0.1 CPU limit
+
+MOTD
+
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/services.conf
