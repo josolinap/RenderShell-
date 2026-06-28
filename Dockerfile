@@ -8,9 +8,7 @@ RUN curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${TS_VERSION}_amd64.
 # ---------- Runtime stage ----------
 FROM alpine:3.20
 
-# Core packages: supervisor + tini (process manager), tailscale binaries,
-# shellinabox (web terminal), python3 (http server + utilities),
-# shadow (for useradd/passwd), openssh (for shellinabox SSH auth), and useful dev tools.
+# Core packages + openssh (for shellinabox auth) + filebrowser (lightweight GUI)
 RUN apk add --no-cache \
         ca-certificates \
         tini \
@@ -33,12 +31,20 @@ RUN apk add --no-cache \
         unzip \
         wget
 
-# Install shellinabox from Alpine edge/testing repo (not in v3.20 stable)
-# Need build deps first, then install the testing package
+# Install shellinabox from Alpine edge/testing
 RUN apk add --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing \
-        shellinabox && \
-    # Verify it installed
-    which shellinaboxd
+        shellinabox
+
+# Install File Browser (lightweight web file manager, ~15MB binary)
+RUN curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash && \
+    filebrowser config init --database /etc/filebrowser.db && \
+    filebrowser config set --database /etc/filebrowser.db \
+        --address 0.0.0.0 \
+        --port 5800 \
+        --root /root && \
+    filebrowser users add --database /etc/filebrowser.db \
+        admin "${FILEBROWSER_PASSWORD:-admin}" \
+        --perm.admin 2>/dev/null || true
 
 # Copy tailscale binaries from builder
 COPY --from=tailscale-builder /tmp/tailscaled /usr/local/bin/tailscaled
@@ -52,43 +58,40 @@ COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 # Set up root password (override at runtime with ROOT_PASSWORD env var)
-# Default is a placeholder — set ROOT_PASSWORD in Render env vars
 ENV ROOT_PASSWORD=change-me
+ENV FILEBROWSER_PASSWORD=admin
 RUN echo "root:${ROOT_PASSWORD}" | chpasswd
 
-# Generate SSH host keys + configure sshd for shellinabox auth
+# Generate SSH host keys + configure sshd
 RUN ssh-keygen -A && \
-    # Allow root login with password
     sed -i 's/^#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    # Set root's shell to bash (nicer than busybox ash)
     sed -i 's|^root:x:0:0:root:/root:/bin/.*|root:x:0:0:root:/root:/bin/bash|' /etc/passwd
 
-# Workspace for the http server + persistent files
-RUN mkdir -p /var/run/tailscale /workspace
+# Workspace + status page
+RUN mkdir -p /var/run/tailscale /workspace /run/sshd
 
-# Status page shown at the Render URL
 RUN printf '%s\n' \
   '<!DOCTYPE html>' \
-  '<html><head><title>Tailscale Exit Node + Web Terminal</title>' \
-  '<style>body{font-family:system-ui,sans-serif;max-width:600px;margin:50px auto;padding:0 20px;color:#333}' \
-  '.status{background:#e8f5e9;padding:15px;border-radius:8px;border-left:4px solid #4caf50}' \
-  'code{background:#f5f5f5;padding:2px 6px;border-radius:3px;font-family:monospace}</style></head>' \
-  '<body><h1>Tailscale Exit Node is Running</h1>' \
-  '<div class="status"><p>This node is active and available as an exit node for your tailnet.</p>' \
-  '<p>Web terminal: <code>http://&lt;node-hostname&gt;:4200</code> via Tailnet</p></div>' \
-  '<p>The shellinabox terminal listens on port 4200 and is reachable via your Tailnet ' \
-  '(not the public Render URL). Use Tailscale SSH or a browser at the Tailscale hostname.</p>' \
+  '<html><head><title>Render Shell</title>' \
+  '<style>body{font-family:system-ui,sans-serif;max-width:700px;margin:50px auto;padding:0 20px;color:#333}' \
+  '.card{background:#f5f5f5;padding:20px;border-radius:8px;margin:15px 0}' \
+  'a{color:#1976d2;text-decoration:none;font-weight:500}' \
+  'a:hover{text-decoration:underline}code{background:#e0e0e0;padding:2px 6px;border-radius:3px}</style></head>' \
+  '<body><h1>Render Shell + File Browser</h1>' \
+  '<div class="card"><h3>Web Terminal (shellinabox)</h3>' \
+  '<p>HTTPS via Tailscale Serve: <code>https://render-exit-node.curl-trench.ts.net/</code></p></div>' \
+  '<div class="card"><h3>File Browser (GUI)</h3>' \
+  '<p>HTTPS via Tailscale Serve: <code>https://render-exit-node.curl-trench.ts.net:5800/</code></p>' \
+  '<p>Login: <code>admin</code> / password from <code>FILEBROWSER_PASSWORD</code> env var</p></div>' \
+  '<div class="card"><h3>Tailscale Exit Node</h3><p>Active and available for your tailnet.</p></div>' \
   '</body></html>' > /workspace/index.html
 
 WORKDIR /workspace
 
-# Health check: verify tailscale is up
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD tailscale status >/dev/null 2>&1 || exit 1
 
-# Render exposes one HTTP port (8080) for the status page.
-# shellinabox on 4200 is only reachable via the Tailnet.
-EXPOSE 8080 4200
+EXPOSE 8080 4200 5800
 
 ENTRYPOINT ["/sbin/tini", "--", "/docker-entrypoint.sh"]

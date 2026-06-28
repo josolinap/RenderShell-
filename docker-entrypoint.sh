@@ -4,24 +4,27 @@ set -e
 # Unset Kubernetes env vars (some hosts leak them; they confuse tailscaled)
 unset KUBERNETES_SERVICE_HOST KUBERNETES_PORT KUBERNETES_PORT_443_TCP
 
-# If ROOT_PASSWORD is set at runtime (via Render env vars), update the password.
-# This lets you change the password without rebuilding the image.
+# If ROOT_PASSWORD is set at runtime, update the password.
 if [ -n "${ROOT_PASSWORD}" ] && [ "${ROOT_PASSWORD}" != "change-me" ]; then
     echo "root:${ROOT_PASSWORD}" | chpasswd
     echo "[entrypoint] root password updated from ROOT_PASSWORD env var"
 else
-    echo "[entrypoint] WARNING: ROOT_PASSWORD not set or is 'change-me'"
-    echo "[entrypoint] Set ROOT_PASSWORD in your Render environment variables"
+    echo "[entrypoint] WARNING: ROOT_PASSWORD not set — using default 'change-me'"
 fi
 
-# Validate that TAILSCALE_AUTHKEY is set
+# Update File Browser admin password at runtime
+if [ -n "${FILEBROWSER_PASSWORD}" ]; then
+    filebrowser users update admin --password "${FILEBROWSER_PASSWORD}" --database /etc/filebrowser.db 2>/dev/null || \
+    filebrowser users add admin "${FILEBROWSER_PASSWORD}" --perm.admin --database /etc/filebrowser.db 2>/dev/null || true
+    echo "[entrypoint] filebrowser admin password updated"
+fi
+
+# Validate TAILSCALE_AUTHKEY
 if [ -z "${TAILSCALE_AUTHKEY}" ]; then
-    echo "[entrypoint] WARNING: TAILSCALE_AUTHKEY is not set — node will not register"
-    echo "[entrypoint] Set TAILSCALE_AUTHKEY in your Render environment variables"
+    echo "[entrypoint] WARNING: TAILSCALE_AUTHKEY not set — node will not register"
 fi
 
 # Ensure sshd privilege separation directory exists
 mkdir -p /run/sshd
 
-# Start supervisord (manages tailscaled, tailscale-up, sshd, shellinabox, http-server)
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/services.conf
