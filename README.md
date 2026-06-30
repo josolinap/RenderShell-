@@ -12,19 +12,19 @@ A Render free-tier web service that combines:
 │  Render Free Web Service (HTTPS)                    │
 │                                                     │
 │  ┌──────────────────────────────────────────────┐   │
-│  │  supervisord (PID 1 via tini)               │   │
+│  │  supervisord (PID 1 via tini)                │   │
 │  │                                              │   │
-│  │  ┌─ tailscaled (userspace networking) ──┐   │   │
-│  │  │  ↳ registers as exit node via authkey │   │   │
-│  │  └──────────────────────────────────────┘   │   │
+│  │  ┌─ tailscaled (userspace networking) ──┐    │   │
+│  │  │  ↳ registers as exit node via authkey│    │   │
+│  │  └──────────────────────────────────────┘    │   │
 │  │                                              │   │
-│  │  ┌─ shellinaboxd (port 4200) ───────────┐   │   │
-│  │  │  ↳ web terminal (Tailnet-only)        │   │   │
-│  │  └──────────────────────────────────────┘   │   │
+│  │  ┌─ shellinaboxd (port 4200) ───────────┐    │   │
+│  │  │  ↳ web terminal (Tailnet-only)       │    │   │
+│  │  └──────────────────────────────────────┘    │   │
 │  │                                              │   │
-│  │  ┌─ python http.server (port 8080) ─────┐   │   │
-│  │  │  ↳ status page (Render public URL)    │   │   │
-│  │  └──────────────────────────────────────┘   │   │
+│  │  ┌─ python http.server (port 8080) ─────┐    │   │
+│  │  │  ↳ status page (Render public URL)   │    │   │
+│  │  └──────────────────────────────────────┘    │   │
 │  └──────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────┘
          ↑                          ↑
